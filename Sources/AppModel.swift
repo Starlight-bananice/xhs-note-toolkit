@@ -14,6 +14,8 @@ final class AppModel: ObservableObject {
     @Published var outputPath = UserDefaults.standard.string(forKey: "outputPath") ??
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/小红书笔记助手").path
     @Published var lastExport: URL?
+    @Published var showingSettings = false
+    let updates = UpdateController()
     private var token: StopToken?
     var inputs: [NoteInput] { Links.parse(input) }
     var finished: Int { results.filter { !["等待处理", "处理中", "未完成"].contains($0.status) }.count }
@@ -29,9 +31,19 @@ final class AppModel: ObservableObject {
             }
             if !results.isEmpty { status = "已载入上次结果；可导出或继续未完成条目。" }
         }
+        do {
+            if let snapshot = try UpdateSession.take() {
+                input = snapshot.input; options = snapshot.options; results = snapshot.results
+                status = snapshot.status; lastExport = snapshot.excelPath.map { URL(fileURLWithPath: $0) }
+            }
+            if let reason = try? String(contentsOf: UpdateSession.failureFile, encoding: .utf8) {
+                status = reason
+                try? FileManager.default.removeItem(at: UpdateSession.failureFile)
+            }
+        } catch { status = "更新前的输入暂未恢复，可从已保存的 Excel 查看结果。" }
     }
     func start(resume: Bool = false) {
-        guard !running else { return }
+        guard !running, !updates.installing else { return }
         var selected = inputs
         var mapping = Array(selected.indices)
         if resume {

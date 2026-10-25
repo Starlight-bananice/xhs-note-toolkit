@@ -2,6 +2,8 @@
 
 面向 **macOS / Apple Silicon + 腾讯应用宝 Mac 版** 的独立桌面工具。输入小红书官方短链或笔记长链，通过应用宝中的安卓小红书处理笔记。
 
+当前版本 **v0.2.0**：[下载最新版](https://github.com/Starlight-bananice/xhs-note-toolkit/releases/latest)。新版采用浅色工作区、深色侧栏和专属应用图标，左下角固定显示版本号与更新按钮。
+
 ## 功能
 
 - 修复链接：打开目标笔记，操作安卓客户端的分享面板，取得真正的“复制链接”结果。
@@ -40,6 +42,14 @@
 
 每篇笔记完成后暂存在当前用户的 `~/Library/Application Support/XHSNoteToolkit/session.json`，便于退出后继续处理。运行数据、测试链接、截图和导出的结果不进入源码仓库。
 
+## 软件更新
+
+启动时自动检查 GitHub 最新正式版；也可点击左下角“检查更新”。发现新版后按钮显示目标版本，点击后下载、校验、安装并重新打开软件，恢复输入、处理选项和结果。正在处理笔记时不能安装更新。
+
+检查失败会显示“重试检查”及原因，不会误报为最新版。也可点击旁边的外链按钮到正式版下载页手动下载安装。0.1.0 没有应用内更新入口，需要先手动安装 0.2.0。
+
+后续发布请使用 `v主版本.次版本.修订号` 标签，并上传对应的 `XHSNoteToolkit-版本号-macOS-arm64.zip`。更新器只接受本项目的正式 Release、匹配的安装包、GitHub SHA-256 下载校验及正确的应用身份和版本；草稿与预发布版不作为正式更新。
+
 ## 构建
 
 需要 Apple Silicon Mac、macOS 13 或更新版本，以及 Xcode Command Line Tools：
@@ -68,3 +78,5 @@ TOOLKIT_JAVA_HOME=/path/to/jdk17 ./build_bridge.command
 ```
 
 独立项目复用了作者原“小红书链接修复”工具的链接校验思路和 Excel 封装实现。两个原工具不作为本软件的运行依赖。
+
+应用图标的矢量绘制源码为 `scripts/render_icon.swift`；构建时直接生成 PNG、完整尺寸图标集与 ICNS，无需额外图像依赖。

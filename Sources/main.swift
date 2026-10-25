@@ -42,13 +42,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var model: AppModel?
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model = AppModel(); self.model = model
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1190, height: 790),
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png"), let icon = NSImage(contentsOf: url) {
+            NSApp.applicationIconImage = icon
+        }
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "小红书笔记助手"
         window.contentView = NSHostingView(rootView: AppView(model: model))
-        window.minSize = NSSize(width: 1080, height: 760)
+        window.minSize = NSSize(width: 1180, height: 820)
+        window.titlebarAppearsTransparent = true
+        window.backgroundColor = NSColor(srgbRed: 0.96, green: 0.96, blue: 0.97, alpha: 1)
         window.center(); window.makeKeyAndOrderFront(nil); self.window = window
         NSApp.activate(ignoringOtherApps: true)
+        Task { @MainActor in model.updates.check() }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

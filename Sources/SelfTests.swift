@@ -5,6 +5,7 @@ enum SelfTests {
         if !condition() { throw ToolkitError.message(message) }
     }
     static func run() throws {
+        try expect(runAppUpdaterTests(), "更新检查、安装包校验及安装回退测试")
         let id = "aaaaaaaaaaaaaaaaaaaaaaaa"
         let url = "https://www.xiaohongshu.com/explore/\(id)?xsec_token=A%2BB%3D&xsec_source=app_share"
         let mixed = "标题 \(url)\nhttps://www.xiaohongshu.com/discovery/item/\(id)\n短链 http://xhslink.cn/a/test\nhttps://www.xiaohongshu.com/user/profile/bbbbbbbbbbbbbbbbbbbbbbbb\nhttps://evil.example/explore/\(id)"
