@@ -1,0 +1,9 @@
+.DS_Store
+.build/
+dist/
+.local/
+*.app/
+*.xlsx
+*.csv
+*.log
+__pycache__/
