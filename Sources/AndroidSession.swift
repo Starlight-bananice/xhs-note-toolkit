@@ -90,8 +90,27 @@ final class AndroidSession {
     func open(noteID: String, video: Bool = false) throws {
         let route = video ? "xhsdiscover://video_feed/\(noteID)" : Links.deepLink(noteID)
         let report = try shell(["am", "start", "-W", "--display", String(display), "-a", "android.intent.action.VIEW", "-d", route, "-p", "com.xingin.xhs"])
-        guard report.contains("Status: ok"), report.contains("NoteDetailActivity") || report.contains("DetailFeedActivity") else {
-            throw ToolkitError.message("安卓客户端未确认打开笔记详情页，已停止本条处理。")
+        try Self.validateLaunchReport(report)
+    }
+    static func validateLaunchReport(_ report: String) throws {
+        let lines = report.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+        let status = lines.first { $0.hasPrefix("Status:") }?.dropFirst("Status:".count)
+            .trimmingCharacters(in: .whitespaces)
+        let activity = lines.first { $0.hasPrefix("Activity:") }?.dropFirst("Activity:".count)
+            .trimmingCharacters(in: .whitespaces)
+        // New clients can receive both note routes through RouterPageActivity. This only
+        // confirms delivery to XHS; NoteRunner.waitForNote still verifies the actual page.
+        guard status == "ok", activity?.range(of: #"^com\.xingin\.xhs/[A-Za-z0-9_.$]+$"#,
+                                              options: .regularExpression) != nil else {
+            let fields = ["Status:", "Activity:", "Error:", "Error type", "Warning:", "Exception", "java.lang."]
+            let diagnostic = lines.filter { line in fields.contains(where: line.hasPrefix) }.prefix(6).map {
+                let redacted = $0.replacingOccurrences(of: #"(?i)[a-z][a-z0-9+.-]*://[^\s]+"#,
+                                                       with: "[链接已省略]", options: .regularExpression)
+                    .replacingOccurrences(of: #"(?i)(xsec_token=)[^&\s]+"#, with: "$1[已省略]", options: .regularExpression)
+                return String(redacted.prefix(160))
+            }.joined(separator: "；")
+            throw ToolkitError.message("安卓客户端未确认接收笔记打开请求，已停止本条处理。启动报告："
+                                       + (diagnostic.isEmpty ? "缺少 Status 或 Activity 字段。" : diagnostic))
         }
     }
     func tap(_ node: UINode) throws {

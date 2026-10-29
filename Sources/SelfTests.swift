@@ -34,6 +34,7 @@ enum SelfTests {
         task.cancel()
         try expect(ProcessRunner.quote("a'b $x; z") == "'a'\\''b $x; z'", "远端参数必须逐个安全引用")
         try expect(AndroidSession.displayID("Window #0 com.other/.Main\n mDisplayId=0\nWindow #1 com.xingin.xhs/.Main\n mDisplayId=3") == 3, "不能固定使用安卓主显示器")
+        try launchReports()
         let video = try Page.read("""
         <?xml version="1.0"?><hierarchy><window display="3">
         <node package="com.xingin.xhs" bounds="[0,0][2560,1600]">
@@ -95,5 +96,40 @@ enum SelfTests {
         let second = try XLSXWriter.makeOutputURL(in: directory)
         try expect(second != output, "同秒导出不得覆盖已有报告")
         print("Links, Android display, video toolbar, deleted state, stop and Excel checks passed")
+    }
+
+    private static func launchReports() throws {
+        for activity in [".activity.NoteDetailActivity", ".activity.DetailFeedActivity", ".routers.RouterPageActivity"] {
+            for route in ["item", "video_feed"] {
+                try AndroidSession.validateLaunchReport("""
+                Starting: Intent { act=android.intent.action.VIEW dat=xhsdiscover://\(route)/aaaaaaaaaaaaaaaaaaaaaaaa }
+                Status: ok
+                LaunchState: UNKNOWN (0)
+                Activity: com.xingin.xhs/\(activity)
+                WaitTime: 59
+                Complete
+                """)
+            }
+        }
+        try AndroidSession.validateLaunchReport("Warning: Activity not started, intent has been delivered to currently running top-most instance.\r\nStatus: ok\r\nActivity: com.xingin.xhs/.routers.RouterPageActivity\r\n")
+        let rejected = [
+            "Status: error\nActivity: com.xingin.xhs/.routers.RouterPageActivity",
+            "Status: okay\nActivity: com.xingin.xhs/.routers.RouterPageActivity",
+            "Status: ok\nActivity: com.other.app/.Main\nStarting: com.xingin.xhs/.routers.RouterPageActivity",
+            "Status: ok\nActivity: com.xingin.xhs.evil/.Main",
+            "Status: ok\nActivity: com.xingin.xhs/",
+            "Status: ok",
+            "Activity: com.xingin.xhs/.routers.RouterPageActivity",
+            "",
+            "Error: unable to resolve Intent { dat=xhsdiscover://item/test?xsec_token=private-token }\nError type 3"
+        ]
+        for report in rejected {
+            var failure: String?
+            do { try AndroidSession.validateLaunchReport(report) }
+            catch { failure = error.localizedDescription }
+            try expect(failure?.contains("启动报告") == true, "失败、其他应用或缺失启动信息必须拒绝并保留诊断")
+            try expect(failure?.contains("private-token") == false, "启动诊断不得泄露链接中的凭证")
+        }
+        print("Android legacy and router launch reports, failure diagnostics and redaction checks passed")
     }
 }
