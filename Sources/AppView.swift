@@ -21,7 +21,8 @@ struct AppView: View {
             sidebar.frame(width: 212)
             VStack(alignment: .leading, spacing: 16) {
                 header
-                if model.showingSettings { settings }
+                if model.page == .settings { settings }
+                else if model.page == .history { historyPage }
                 else {
                     HStack(alignment: .top, spacing: 16) {
                         inputCard
@@ -57,8 +58,9 @@ struct AppView: View {
             }.foregroundColor(.white).padding(.top, 25).padding(.bottom, 35)
             Text("工作空间").font(.system(size: 10, weight: .medium)).foregroundColor(.white.opacity(0.35))
                 .padding(.horizontal, 14).padding(.bottom, 12)
-            navButton("笔记工作台", icon: "square.grid.2x2", settings: false)
-            navButton("连接与保存", icon: "slider.horizontal.3", settings: true).padding(.top, 7)
+            navButton("笔记工作台", icon: "square.grid.2x2", page: .workbench)
+            navButton("历史记录", icon: "clock.arrow.circlepath", page: .history).padding(.top, 7)
+            navButton("连接与保存", icon: "slider.horizontal.3", page: .settings).padding(.top, 7)
             Spacer(minLength: 30)
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 7) {
@@ -95,9 +97,9 @@ struct AppView: View {
             .background(LinearGradient(colors: [Color(red: 0.12, green: 0.16, blue: 0.23), Color(red: 0.09, green: 0.12, blue: 0.18)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
-    private func navButton(_ title: String, icon: String, settings: Bool) -> some View {
-        let selected = model.showingSettings == settings
-        return Button { model.showingSettings = settings } label: {
+    private func navButton(_ title: String, icon: String, page: WorkspacePage) -> some View {
+        let selected = model.page == page
+        return Button { model.page = page } label: {
             HStack(spacing: 11) {
                 Image(systemName: icon).font(.system(size: 14)).frame(width: 18)
                 Text(title).font(.system(size: 12, weight: selected ? .semibold : .regular))
@@ -111,9 +113,9 @@ struct AppView: View {
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(model.showingSettings ? "连接与保存" : "笔记工作台")
+                Text(model.page == .settings ? "连接与保存" : model.page == .history ? "历史记录" : "笔记工作台")
                     .font(.system(size: 25, weight: .semibold)).foregroundColor(Palette.ink)
-                Text(model.showingSettings ? "管理应用宝连接和结果文件的位置。" : "修复分享链接，收集互动数据，检查笔记状态。")
+                Text(model.page == .settings ? "管理应用宝连接和结果文件的位置。" : model.page == .history ? "查看以往批次，打开结果文件，继续中断的任务。" : "修复分享链接，收集互动数据，检查笔记状态。")
                     .font(.system(size: 11)).foregroundColor(Palette.muted)
             }
             Spacer()
@@ -203,10 +205,14 @@ struct AppView: View {
                     Label("开始处理", systemImage: "play.fill").font(.system(size: 11, weight: .semibold))
                         .padding(.horizontal, 10).padding(.vertical, 5)
                 }.buttonStyle(.borderedProminent).tint(Palette.accent).disabled(busy || model.inputs.isEmpty)
-                Button { model.stop() } label: { Label("停止", systemImage: "stop.fill") }
-                    .font(.system(size: 10)).buttonStyle(.borderless).foregroundColor(Palette.muted).disabled(!model.running)
-                Button("继续未完成") { model.start(resume: true) }.font(.system(size: 10))
-                    .buttonStyle(.borderless).foregroundColor(Palette.ink).disabled(busy || !model.retryable)
+                Button { model.stop() } label: {
+                    Label("暂停", systemImage: "pause.fill").font(.system(size: 11, weight: .semibold))
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                }.buttonStyle(.borderedProminent).tint(Palette.accent).disabled(!model.running)
+                Button { model.start(resume: true) } label: {
+                    Label("继续未完成", systemImage: "playpause.fill").font(.system(size: 11, weight: .semibold))
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                }.buttonStyle(.borderedProminent).tint(Palette.accent).disabled(busy || !model.retryable)
                 Spacer()
                 if model.running { ProgressView().controlSize(.small) }
                 Text(model.results.isEmpty ? "准备就绪" : "\(model.finished) / \(model.results.count)")
@@ -228,6 +234,7 @@ struct AppView: View {
                     .disabled(busy || !model.results.contains { !$0.shareURL.isEmpty })
                 Button { model.export() } label: { Label("导出 Excel", systemImage: "square.and.arrow.up") }
                     .disabled(busy || model.results.isEmpty)
+                Button { model.openOutputFolder() } label: { Label("打开保存文件夹", systemImage: "folder") }
                 Button { if let url = model.lastExport { NSWorkspace.shared.open(url) } } label: { Image(systemName: "arrow.up.right.square") }
                     .disabled(model.lastExport == nil).help("打开最近的 Excel")
             }.font(.system(size: 10)).buttonStyle(.borderless).foregroundColor(Palette.muted).padding(.horizontal, 17).padding(.vertical, 14)
@@ -260,6 +267,65 @@ struct AppView: View {
         }.card()
     }
 
+    private var historyPage: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("共 \(model.history.count) 个批次").font(.system(size: 12, weight: .medium)).foregroundColor(Palette.ink)
+                Spacer()
+                Button { model.openOutputFolder() } label: { Label("打开 Excel 保存文件夹", systemImage: "folder") }
+                    .font(.system(size: 11))
+            }
+            if model.history.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath").font(.system(size: 30)).foregroundColor(Palette.muted.opacity(0.4))
+                    Text("暂无历史记录").font(.system(size: 14, weight: .medium))
+                    Text("开始处理后自动记录每个批次，暂停或重开软件后都可以继续。")
+                        .font(.system(size: 11)).foregroundColor(Palette.muted)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity).card()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(model.history) { record in historyCard(record) }
+                    }.padding(1)
+                }
+            }
+            Text(model.status).font(.system(size: 10)).foregroundColor(Palette.muted).lineLimit(2)
+        }
+    }
+
+    private func historyCard(_ record: BatchRecord) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(record.createdAt.formatted(date: .numeric, time: .standard))
+                    .font(.system(size: 13, weight: .semibold)).foregroundColor(Palette.ink)
+                Text(record.state).font(.system(size: 10, weight: .medium))
+                    .foregroundColor(record.remaining == 0 ? Palette.green : Palette.accent)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background((record.remaining == 0 ? Palette.green : Palette.accent).opacity(0.07)).clipShape(Capsule())
+                Spacer()
+                Text("已完成 \(record.completed) / \(record.results.count)").font(.system(size: 11)).foregroundColor(Palette.muted)
+            }
+            Text(record.results.first?.original ?? "空批次").font(.system(size: 10)).foregroundColor(Palette.muted).lineLimit(1)
+            HStack(spacing: 12) {
+                Text(record.options.statusOnly ? "仅查有效性" : [record.options.repair ? "修复链接" : "", record.options.metrics ? "采集数据" : ""].filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.system(size: 10)).foregroundColor(Palette.muted)
+                if record.remaining > 0 { Text("待续跑 \(record.remaining) 条").font(.system(size: 10)).foregroundColor(Palette.accent) }
+                Spacer()
+                Button("查看结果") { model.load(record) }.disabled(busy)
+                Button("打开 Excel") {
+                    if let path = record.excelPath, !NSWorkspace.shared.open(URL(fileURLWithPath: path)) {
+                        model.status = "Excel 文件可能已移动，请查看结果后重新导出。"
+                    }
+                }.disabled(record.excelPath == nil)
+                Button { model.openHistoryFolder(record) } label: { Image(systemName: "folder") }.help("打开该批次 Excel 文件夹")
+                if record.remaining > 0 {
+                    Button("继续此批次") { model.load(record, resume: true) }
+                        .buttonStyle(.borderedProminent).tint(Palette.accent).disabled(busy)
+                }
+            }.font(.system(size: 10))
+        }.padding(17).card()
+    }
+
     private var settings: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 15) {
@@ -269,12 +335,13 @@ struct AppView: View {
                     Image(systemName: "folder").foregroundColor(Palette.accent)
                     Text(model.outputPath).font(.system(size: 11)).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                     Spacer()
+                    Button("打开文件夹", action: model.openOutputFolder)
                     Button("选择文件夹…", action: model.chooseOutput)
                 }.padding(12).background(Palette.canvas).clipShape(RoundedRectangle(cornerRadius: 8))
             }.padding(20).card()
             VStack(alignment: .leading, spacing: 16) {
                 HStack { sectionTitle("02", "应用宝连接"); Spacer(); Button("检查连接", action: model.checkConnection) }
-                Text("先在腾讯应用宝中打开并登录小红书。软件会自动识别连接和窗口。").font(.system(size: 11)).foregroundColor(Palette.muted)
+                Text("先在腾讯应用宝中打开小红书。仅查有效性可使用未登录状态；修复与采集建议登录。软件会自动识别连接和窗口。").font(.system(size: 11)).foregroundColor(Palette.muted)
                 DisclosureGroup("高级连接设置") {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {

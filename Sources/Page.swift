@@ -50,6 +50,14 @@ final class Page: NSObject, XMLParserDelegate {
         return labels.first { value in markers.contains(where: value.contains) }
     }
     var isHome: Bool { labels.contains("首页") && labels.contains("发现") && labels.contains("市集") }
+    var isAuthorProfile: Bool {
+        deletedHint == nil && !isHome && !isReadableNote
+            && find(exact: ["粉丝"]) != nil && find(exact: ["关注", "已关注", "互相关注"]) != nil
+            && find(exact: ["笔记", "获赞与收藏"]) != nil
+    }
+    var isLoginPage: Bool {
+        !isHome && !isReadableNote && find(exact: ["手机号登录", "一键登录", "验证码登录"]) != nil
+    }
     func find(exact labels: [String]) -> Int? {
         nodes.indices.first { i in
             let n = nodes[i]
@@ -85,6 +93,21 @@ final class Page: NSObject, XMLParserDelegate {
     var isNote: Bool {
         !isHome && !author.isEmpty && (nodes.contains { $0.description.hasPrefix("收藏") }
             || labels.contains("说点什么...") || labels.contains("说点什么…"))
+    }
+    var isReadableNote: Bool {
+        if isNote { return true }
+        // Guest pages may omit the author header. Require actual media and the note toolbar,
+        // rather than treating a login prompt or a partial loading page as a readable note.
+        let media = nodes.contains {
+            $0.package == "com.xingin.xhs" && !$0.bounds.isEmpty
+                && ($0.description.hasPrefix("图片,第") || $0.className.hasSuffix("VideoView")
+                    || $0.className.hasSuffix("SurfaceView") || $0.className.hasSuffix("TextureView"))
+        }
+        let toolbar = nodes.contains {
+            $0.package == "com.xingin.xhs" && !$0.bounds.isEmpty
+                && $0.bounds.midY > screen.height * 0.75 && $0.description.hasPrefix("收藏")
+        }
+        return !isHome && media && toolbar && find(exact: ["说点什么...", "说点什么…"]) != nil
     }
     func metric(_ prefix: String) -> String {
         for n in nodes where !n.bounds.isEmpty && n.bounds.midY > screen.height * 0.75 {

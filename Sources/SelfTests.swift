@@ -5,6 +5,8 @@ enum SelfTests {
         if !condition() { throw ToolkitError.message(message) }
     }
     static func run() throws {
+        try BatchHistoryTests.run()
+        try NotePacingTests.run()
         try expect(runAppUpdaterTests(), "更新检查、安装包校验及安装回退测试")
         let id = "aaaaaaaaaaaaaaaaaaaaaaaa"
         let url = "https://www.xiaohongshu.com/explore/\(id)?xsec_token=A%2BB%3D&xsec_source=app_share"
@@ -61,6 +63,24 @@ enum SelfTests {
         </node></hierarchy>
         """)
         try expect(comment.deletedHint == nil, "正文和评论提到删除不能当作系统删除提示")
+        let guest = try Page.read("""
+        <?xml version="1.0"?><hierarchy><window display="2"><node package="com.xingin.xhs" bounds="[0,0][1600,2560]">
+        <node package="com.xingin.xhs" content-desc="图片,第1张,共6张,双指左划或右划即可查看更多内容" bounds="[280,225][1320,1611]"/>
+        <node package="com.xingin.xhs" text="登录查看更多精彩内容" bounds="[134,2335][1382,2386]"/>
+        <node package="com.xingin.xhs" text="去登录" bounds="[1423,2335][1528,2386]"/>
+        <node package="com.xingin.xhs" text="说点什么..." content-desc="评论框" bounds="[38,2442][1039,2534]"/>
+        <node package="com.xingin.xhs" content-desc="收藏 0" bounds="[1241,2438][1391,2539]"/>
+        </node></window></hierarchy>
+        """)
+        try expect(guest.isReadableNote && !guest.isNote && guest.restriction == nil,
+                   "未登录笔记的媒体与工具栏可判定可访问，不要求采集作者，也不把去登录横条误判为限制")
+        let login = try Page.read("""
+        <?xml version="1.0"?><hierarchy><node package="com.xingin.xhs" bounds="[0,0][1600,2560]">
+        <node package="com.xingin.xhs" text="请先登录" bounds="[100,200][1000,300]"/>
+        </node></hierarchy>
+        """)
+        try expect(!login.isReadableNote && login.deletedHint == nil && login.restriction == "请先登录",
+                   "登录拦截既不能算可访问，也不能误判已删除")
         let stopped = StopToken(); stopped.stop()
         do { try stopped.check(); throw ToolkitError.message("停止必须生效") } catch ToolkitError.stopped { }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("xhs-toolkit-tests-\(UUID())")

@@ -5,6 +5,7 @@ final class NoteRunner {
     let stop: StopToken
     init(stop: StopToken) { self.stop = stop }
     func run(inputs: [NoteInput], options: JobOptions, adbPath: String, serial: String,
+             completedNoteIDs: Set<String> = [],
              progress: (Int, NoteResult) -> Void, message: (String) -> Void) throws {
         message("正在连接应用宝中的安卓小红书…")
         let adb = try ADBLocation.find(custom: adbPath)
@@ -13,10 +14,11 @@ final class NoteRunner {
         defer { session.close() }
         try session.start()
         try session.restore()
-        var seen = Set<String>()
+        var seen = completedNoteIDs
         for (index, input) in inputs.enumerated() {
             try stop.check()
             var row = NoteResult(original: input.original, noteID: input.noteID)
+            var recorded = false
             row.status = "处理中"
             progress(index, row)
             do {
@@ -29,18 +31,19 @@ final class NoteRunner {
                 }
                 if !seen.insert(row.noteID).inserted {
                     row.status = "重复笔记"; row.detail = "与本批前面的链接指向同一篇笔记，已跳过。"
-                    progress(index, row); continue
+                    recorded = true; progress(index, row); continue
                 }
                 message("第 \(index+1)/\(inputs.count) 条：正在打开笔记…")
                 try session.open(noteID: row.noteID, video: Links.isVideo(destination))
-                let page = try waitForNote(session)
+                let page = try waitForNote(session, statusOnly: options.statusOnly)
                 if let hint = page.deletedHint {
                     row.status = "已删除"; row.detail = hint
                     row.processedAt = ISO8601DateFormatter().string(from: Date())
+                    recorded = true
                     progress(index, row)
-                    try session.restore()
-                    try stop.pause(3.5) // this client redirects unavailable notes after a 3-second countdown
-                    try session.restore()
+                    message("第 \(index+1)/\(inputs.count) 条：已记录失效结果。")
+                    try NotePacing.afterDeletedNote(waitForAuthor: session.waitForAuthorProfile,
+                                                   returnHome: session.restore, pause: stop.pause)
                     continue
                 }
                 if let hint = page.restriction {
@@ -85,36 +88,44 @@ final class NoteRunner {
                     if row.status != "待核验" { row.status = "部分完成" }
                 }
                 row.processedAt = ISO8601DateFormatter().string(from: Date())
+                recorded = true
                 progress(index, row)
-                try session.restore()
-                if index+1 < inputs.count { try stop.pause(2) }
+                if options.repair { try session.ensureNoteVisible() }
+                message("第 \(index+1)/\(inputs.count) 条：已取得结果。")
+                try NotePacing.afterReadableNote(pause: stop.pause, returnHome: session.restore)
             } catch ToolkitError.stopped {
-                row.status = "未完成"; row.detail = "本条已停止，可重新处理。"
-                progress(index, row)
+                if !recorded {
+                    row.status = "未完成"; row.detail = "本条已暂停，可继续处理。"
+                    progress(index, row)
+                }
                 throw ToolkitError.stopped
             } catch {
+                // A result is already checkpointed. Navigation or pause failures must not erase it
+                // or trigger a second recovery that would interrupt the client's automatic redirect.
+                if recorded { throw error }
                 if row.status == "访问受限" || row.status == "需验证" { throw error }
                 row.status = "处理失败"; row.detail = error.localizedDescription
                 row.processedAt = ISO8601DateFormatter().string(from: Date())
                 progress(index, row)
                 // A recovery failure stops the whole batch instead of risking stale-page data.
                 try session.restore()
+                try stop.pause(2)
             }
         }
     }
-    private func waitForNote(_ session: AndroidSession) throws -> Page {
-        let deadline = Date().addingTimeInterval(18)
+    private func waitForNote(_ session: AndroidSession, statusOnly: Bool) throws -> Page {
+        let deadline = Date().addingTimeInterval(statusOnly ? 8 : 18)
         var last: Page?
         while Date() < deadline {
             try stop.check()
             let page = try session.page(); last = page
             if page.deletedHint != nil || page.restriction != nil { return page }
-            if page.isNote {
-                // One short confirmation lets the Android toolbar populate its counters.
-                try stop.pause(0.35)
+            if statusOnly ? page.isReadableNote : page.isNote {
+                // Status-only confirms the page structure; metric jobs also wait for counters.
+                try stop.pause(statusOnly ? 0.15 : 0.35)
                 let stable = try session.page()
                 if stable.deletedHint != nil || stable.restriction != nil { return stable }
-                if stable.isNote { return stable }
+                if statusOnly ? stable.isReadableNote : stable.isNote { return stable }
             }
             try stop.pause(0.2)
         }

@@ -122,6 +122,28 @@ final class AndroidSession {
         }
         throw ToolkitError.message("没有恢复到小红书首页。为防止读取错笔记，已停止批次；请返回首页后重试。")
     }
+    func ensureNoteVisible() throws {
+        try NotePacing.confirmNoteAfterShare(readPage: page, dismissShare: back, pause: stop.pause)
+    }
+    func waitForAuthorProfile() throws {
+        let deadline = Date().addingTimeInterval(12)
+        while Date() < deadline {
+            try stop.check()
+            let current = try page()
+            if current.deletedHint == nil && (current.isAuthorProfile || current.isHome) {
+                // Some unavailable authors lead directly home. Confirm either destination without
+                // pressing Back while the client's deletion countdown is still active.
+                try stop.pause(0.2)
+                let stable = try page()
+                if stable.deletedHint == nil && (stable.isAuthorProfile || stable.isHome) { return }
+            }
+            if current.isLoginPage || current.restriction != nil {
+                throw ToolkitError.message("失效笔记跳转时出现登录或访问限制，已停止批次，保留失效结果；请先在客户端处理。")
+            }
+            try stop.pause(0.2)
+        }
+        throw ToolkitError.message("未确认失效笔记自动跳转完成，已停止批次；没有提前返回或打开下一条笔记。")
+    }
     func close() {
         try? input.fileHandleForWriting.write(contentsOf: Data("quit\n".utf8))
         try? input.fileHandleForWriting.close()
