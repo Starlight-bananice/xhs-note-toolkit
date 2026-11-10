@@ -5,7 +5,6 @@ final class NoteRunner {
     let stop: StopToken
     init(stop: StopToken) { self.stop = stop }
     func run(inputs: [NoteInput], options: JobOptions, adbPath: String, serial: String,
-             completedNoteIDs: Set<String> = [],
              progress: (Int, NoteResult) -> Void, message: (String) -> Void) throws {
         message("正在连接应用宝中的安卓小红书…")
         let adb = try ADBLocation.find(custom: adbPath)
@@ -14,7 +13,6 @@ final class NoteRunner {
         defer { session.close() }
         try session.start()
         try session.restore()
-        var seen = completedNoteIDs
         for (index, input) in inputs.enumerated() {
             try stop.check()
             var row = NoteResult(original: input.original, noteID: input.noteID)
@@ -28,10 +26,6 @@ final class NoteRunner {
                     let expanded = try Links.resolve(URL(string: input.original)!, stop: stop)
                     destination = expanded
                     row.noteID = Links.noteID(expanded) ?? ""
-                }
-                if !seen.insert(row.noteID).inserted {
-                    row.status = "重复笔记"; row.detail = "与本批前面的链接指向同一篇笔记，已跳过。"
-                    recorded = true; progress(index, row); continue
                 }
                 message("第 \(index+1)/\(inputs.count) 条：正在打开笔记…")
                 try session.open(noteID: row.noteID, video: Links.isVideo(destination))

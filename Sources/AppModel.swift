@@ -23,6 +23,10 @@ final class AppModel: ObservableObject {
     var inputs: [NoteInput] { Links.parse(input) }
     var finished: Int { results.filter { !["等待处理", "处理中", "未完成"].contains($0.status) }.count }
     var retryable: Bool { results.contains(where: \.needsResume) }
+    var linksForCopy: String {
+        let rows = selection.isEmpty ? results : results.filter { selection.contains($0.id) }
+        return rows.map(\.shareURL).joined(separator: "\n")
+    }
 
     init(storage: BatchHistory = BatchHistory(), restoreUpdate: Bool = true) {
         self.storage = storage
@@ -80,7 +84,6 @@ final class AppModel: ObservableObject {
         let indexes = resume ? record.resumeIndices : Array(record.results.indices)
         guard !indexes.isEmpty else { status = "这批笔记已处理完成，无需续跑。"; return }
         let batch = indexes.map { NoteInput(original: record.results[$0].original, noteID: record.results[$0].noteID) }
-        let completedIDs = Set(record.results.filter { !$0.needsResume }.map(\.noteID).filter { !$0.isEmpty })
         record.state = "处理中"; record.updatedAt = Date()
         // Persist the entire queue before connecting, including items not reached yet.
         do { try storage.save(record) }
@@ -99,7 +102,6 @@ final class AppModel: ObservableObject {
             var interrupted = false
             do {
                 try NoteRunner(stop: token).run(inputs: batch, options: checkpoint.options, adbPath: path, serial: device,
-                    completedNoteIDs: completedIDs,
                     progress: { index, row in
                         checkpoint.results[indexes[index]] = row; checkpoint.updatedAt = Date()
                         do { try storage.save(checkpoint) }

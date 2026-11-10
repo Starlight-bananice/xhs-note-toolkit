@@ -132,7 +132,7 @@ struct AppView: View {
             HStack {
                 sectionTitle("01", "添加笔记链接")
                 Spacer()
-                Text("\(model.inputs.count) 篇笔记").font(.system(size: 10, weight: .medium)).foregroundColor(Palette.accent)
+                Text("\(model.inputs.count) 条链接").font(.system(size: 10, weight: .medium)).foregroundColor(Palette.accent)
                     .padding(.horizontal, 9).padding(.vertical, 5).background(Palette.accent.opacity(0.07)).clipShape(Capsule())
             }
             ZStack(alignment: .topLeading) {
@@ -156,7 +156,7 @@ struct AppView: View {
                 Button("清空") { model.input = "" }.buttonStyle(.plain).font(.system(size: 10))
                     .foregroundColor(Palette.muted).disabled(busy || model.input.isEmpty)
                 Spacer()
-                Label("按笔记去重", systemImage: "checkmark.circle").font(.system(size: 9)).foregroundColor(Palette.muted)
+                Text("保留顺序与重复").font(.system(size: 9)).foregroundColor(Palette.muted)
             }.frame(height: 19)
         }.padding(17).card()
     }
@@ -231,7 +231,8 @@ struct AppView: View {
                     .foregroundColor(Palette.muted).padding(.horizontal, 7).padding(.vertical, 3).background(Palette.canvas).clipShape(Capsule())
                 Spacer()
                 Button { copyLinks() } label: { Label("复制链接", systemImage: "doc.on.doc") }
-                    .disabled(busy || !model.results.contains { !$0.shareURL.isEmpty })
+                    .disabled(busy || model.results.isEmpty)
+                    .help("按结果顺序复制，未取得链接的条目保留空行；选中时仅复制所选行。")
                 Button { model.export() } label: { Label("导出 Excel", systemImage: "square.and.arrow.up") }
                     .disabled(busy || model.results.isEmpty)
                 Button { model.openOutputFolder() } label: { Label("打开保存文件夹", systemImage: "folder") }
@@ -381,9 +382,7 @@ struct AppView: View {
         }
     }
     private func copyLinks() {
-        let rows = model.selection.isEmpty ? model.results : model.results.filter { model.selection.contains($0.id) }
-        let links = rows.map(\.shareURL).filter { !$0.isEmpty }.joined(separator: "\n")
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(links, forType: .string)
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.linksForCopy, forType: .string)
     }
 }
 

@@ -24,7 +24,8 @@ enum BatchHistoryTests {
         try store.save(record)
         let recovered = try BatchHistory(directory: root).current()!
         try SelfTests.expect(recovered.results[4].status == "未完成" && recovered.state == "已中断", "意外退出后的处理中项应恢复为可续跑")
-        try SelfTests.expect(recovered.resumeIndices == [4, 5], "续跑必须跳过完成、可访问、已删除及重复条目")
+        try SelfTests.expect(recovered.resumeIndices == [3, 4, 5] && recovered.results[3].status == "未完成",
+                             "续跑跳过已完成结果，旧版按重复跳过的条目需恢复为未完成")
         try SelfTests.expect(recovered.results[0].shareURL == record.results[0].shareURL && !recovered.options.comments,
                    "保留成功结果与原批次处理选项")
         try SelfTests.expect(recovered.id == record.id && recovered.excelPath == record.excelPath, "重启后保留批次身份与 Excel 路径")

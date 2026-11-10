@@ -6,15 +6,16 @@ enum SelfTests {
     }
     static func run() throws {
         try BatchHistoryTests.run()
+        try LinkOrderTests.run()
         try NotePacingTests.run()
         try expect(runAppUpdaterTests(), "更新检查、安装包校验及安装回退测试")
         let id = "aaaaaaaaaaaaaaaaaaaaaaaa"
         let url = "https://www.xiaohongshu.com/explore/\(id)?xsec_token=A%2BB%3D&xsec_source=app_share"
         let mixed = "标题 \(url)\nhttps://www.xiaohongshu.com/discovery/item/\(id)\n短链 http://xhslink.cn/a/test\nhttps://www.xiaohongshu.com/user/profile/bbbbbbbbbbbbbbbbbbbbbbbb\nhttps://evil.example/explore/\(id)"
         let inputs = Links.parse(mixed)
-        try expect(inputs.count == 2, "短长链、分享文案、主页排除与笔记去重")
+        try expect(inputs.count == 3, "短长链、分享文案与主页排除，保留同一笔记的不同链接")
         try expect(inputs[0].original == url, "不能丢弃原链的分享参数")
-        try expect(inputs[1].noteID.isEmpty, "短链必须展开后才取得笔记 ID")
+        try expect(inputs[1].noteID == id && inputs[2].noteID.isEmpty, "同笔记长链保留原位，短链必须展开后才取得笔记 ID")
         try expect(!Links.official(URL(string: "https://xiaohongshu.com.evil.example/explore/\(id)")!), "仿冒域名不得通过")
         try expect(!Links.official(URL(string: "https://user:pass@www.xiaohongshu.com/explore/\(id)")!), "不得处理携带凭据的 URL")
         try expect(Links.noteID(URL(string: url)!) == id, "标准笔记解析")

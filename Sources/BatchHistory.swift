@@ -39,9 +39,11 @@ struct BatchRecord: Codable, Identifiable {
         copy.results = results.map { row in
             var row = row
             if row.status == "处理中" { row.status = "未完成"; row.detail = "上次处理已中断，可继续处理。" }
+            if row.status == "重复笔记" { row.status = "未完成"; row.detail = "旧版按重复笔记跳过，本条可继续处理。" }
             return row
         }
         if copy.state == "处理中" { copy.state = copy.remaining == 0 ? "已完成" : "已中断" }
+        if copy.state == "已完成" && copy.remaining > 0 { copy.state = "待续跑" }
         return copy
     }
 }

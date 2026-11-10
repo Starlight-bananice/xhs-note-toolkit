@@ -30,7 +30,7 @@ struct NoteResult: Identifiable, Codable {
     var detail = ""
     var processedAt = ""
     var successful: Bool { status == "可访问" || status == "完成" }
-    var needsResume: Bool { !["完成", "可访问", "已删除", "重复笔记"].contains(status) }
+    var needsResume: Bool { !["完成", "可访问", "已删除"].contains(status) }
 }
 
 enum WorkspacePage { case workbench, history, settings }

@@ -29,13 +29,10 @@ enum Links {
         }
     }
     static func parse(_ text: String) -> [NoteInput] {
-        var seen = Set<String>()
         return urls(text).compactMap { url in
             guard official(url) else { return nil }
             let id = noteID(url) ?? ""
             guard !id.isEmpty || (isShort(url) && url.path != "/" && !url.path.isEmpty) else { return nil }
-            let key = id.isEmpty ? url.absoluteString : id
-            guard seen.insert(key).inserted else { return nil }
             return NoteInput(original: url.absoluteString, noteID: id)
         }
     }
